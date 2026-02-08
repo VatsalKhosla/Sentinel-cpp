@@ -1,0 +1,19 @@
+# Build artifacts
+build/
+*.o
+*.so
+*.a
+safecpp
+tests
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Clang
+compile_commands.json
+
+# OS
+.DS_Store
