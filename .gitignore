@@ -17,3 +17,7 @@ compile_commands.json
 
 # OS
 .DS_Store
+
+# Documentation (work in progress)
+ROADMAP.md
+GETTING_STARTED.md
