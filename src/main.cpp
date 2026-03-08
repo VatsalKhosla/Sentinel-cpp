@@ -14,6 +14,7 @@
 #include "interproc_ownership.h"
 #include "config.h"
 #include "report_generator.h"
+#include "compile_commands.h"
 
 using namespace clang;
 using namespace clang::tooling;
@@ -38,6 +39,13 @@ static cl::opt<std::string> OutputFile(
 static cl::opt<std::string> ConfigFile(
     "config",
     cl::desc("Configuration file path"),
+    cl::value_desc("path"),
+    cl::init(""),
+    cl::cat(SafeCppCategory));
+
+static cl::opt<std::string> CompileCommandsFile(
+    "compile-commands",
+    cl::desc("Path to compile_commands.json for multi-file analysis"),
     cl::value_desc("path"),
     cl::init(""),
     cl::cat(SafeCppCategory));
@@ -112,9 +120,6 @@ private:
     safecpp::MemoryLeakDetector leak_detector_;
     safecpp::NullDerefDetector null_detector_;
     safecpp::CallGraph call_graph_;
-    safecpp::UAFDetector uaf_detector_;
-    safecpp::MemoryLeakDetector leak_detector_;
-    safecpp::NullDerefDetector null_detector_;
 };
 
 class SafeCppAction : public ASTFrontendAction {

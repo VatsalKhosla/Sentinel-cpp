@@ -20,6 +20,18 @@ struct OwnershipTransfer {
     unsigned int transfer_line;  // Where the transfer happens
 };
 
+// Cross-function UAF violation
+struct CrossFunctionUAFViolation {
+    std::string variable;
+    std::string alloc_func;      // Where allocated
+    unsigned int alloc_line;
+    std::string free_func;       // Where freed
+    unsigned int free_line;
+    std::string use_func;        // Where used after free
+    unsigned int use_line;
+    std::vector<std::string> ownership_chain;  // [func1 -> func2 -> func3]
+};
+
 // Tracks which pointers can escape from a function
 struct FunctionOwnershipSummary {
     std::string function_name;
@@ -49,13 +61,14 @@ public:
     const FunctionOwnershipSummary* getFunctionSummary(const std::string& func) const;
     
     // Cross-function UAF detection
-    std::vector<std::string> detectCrossFunctionUAF() const;
+    std::vector<CrossFunctionUAFViolation> detectCrossFunctionUAF() const;
     
 private:
     const CallGraph& call_graph_;
     const LifetimeAnalyzer& lifetime_analyzer_;
     
     std::vector<OwnershipTransfer> transfers_;
+    std::vector<CrossFunctionUAFViolation> uaf_violations_;
     std::map<std::string, FunctionOwnershipSummary> summaries_;
     
     // Analyze individual function for ownership
@@ -63,6 +76,13 @@ private:
     
     // Propagate ownership through call graph
     void propagateOwnership();
+    
+    // Helper: check if pointer can flow from source to target function
+    bool canPointerFlow(const std::string& ptr_var, const std::string& source_func, const std::string& target_func) const;
+    
+    // Helper: get path from function A to function B in call graph
+    bool findCallPath(const std::string& from_func, const std::string& to_func, 
+                     std::vector<std::string>& path) const;
 };
 
 } // namespace safecpp

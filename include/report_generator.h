@@ -5,6 +5,7 @@
 #include "uaf_detector.h"
 #include "memory_leak_detector.h"
 #include "null_deref_detector.h"
+#include "interproc_ownership.h"
 #include <string>
 #include <vector>
 
@@ -14,9 +15,11 @@ struct AnalysisResults {
     std::vector<UAFViolation> uaf_violations;
     std::vector<MemoryLeakViolation> leak_violations;
     std::vector<NullDerefViolation> null_violations;
+    std::vector<CrossFunctionUAFViolation> cross_func_uaf_violations;
     
     int total() const {
-        return uaf_violations.size() + leak_violations.size() + null_violations.size();
+        return uaf_violations.size() + leak_violations.size() + null_violations.size() + 
+               cross_func_uaf_violations.size();
     }
 };
 
