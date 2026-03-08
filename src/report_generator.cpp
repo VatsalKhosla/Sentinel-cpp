@@ -555,6 +555,52 @@ std::string ReportGenerator::toSARIF(const AnalysisResults& results) {
         first = false;
     }
     
+    // Cross-function UAF violations
+    for (const auto& v : results.cross_func_uaf_violations) {
+        if (!first) sarif << ",\n";
+        sarif << "      {\n";
+        sarif << "        \"ruleId\": \"cross-function-use-after-free\",\n";
+        sarif << "        \"level\": \"error\",\n";
+        sarif << "        \"message\": {\n";
+        sarif << "          \"text\": \"Interprocedural use-after-free: memory allocated in " << v.alloc_func << " is freed in " << v.free_func << " but used in " << v.use_func << "\"\n";
+        sarif << "        },\n";
+        sarif << "        \"locations\": [\n";
+        sarif << "          {\n";
+        sarif << "            \"physicalLocation\": {\n";
+        sarif << "              \"region\": { \"startLine\": " << v.alloc_line << " },\n";
+        sarif << "              \"message\": { \"text\": \"Allocation site\" }\n";
+        sarif << "            }\n";
+        sarif << "          },\n";
+        sarif << "          {\n";
+        sarif << "            \"physicalLocation\": {\n";
+        sarif << "              \"region\": { \"startLine\": " << v.free_line << " },\n";
+        sarif << "              \"message\": { \"text\": \"Deallocation site\" }\n";
+        sarif << "            }\n";
+        sarif << "          },\n";
+        sarif << "          {\n";
+        sarif << "            \"physicalLocation\": {\n";
+        sarif << "              \"region\": { \"startLine\": " << v.use_line << " },\n";
+        sarif << "              \"message\": { \"text\": \"Use-after-free site\" }\n";
+        sarif << "            }\n";
+        sarif << "          }\n";
+        sarif << "        ],\n";
+        sarif << "        \"properties\": {\n";
+        sarif << "          \"variable\": \"" << v.variable << "\",\n";
+        sarif << "          \"alloc_func\": \"" << v.alloc_func << "\",\n";
+        sarif << "          \"free_func\": \"" << v.free_func << "\",\n";
+        sarif << "          \"use_func\": \"" << v.use_func << "\",\n";
+        sarif << "          \"transfer_type\": \"" << v.transfer_type << "\",\n";
+        sarif << "          \"ownership_chain\": \"";
+        for (size_t i = 0; i < v.ownership_chain.size(); ++i) {
+            if (i > 0) sarif << " → ";
+            sarif << v.ownership_chain[i];
+        }
+        sarif << "\"\n";
+        sarif << "        }\n";
+        sarif << "      }";
+        first = false;
+    }
+    
     // Memory leak violations
     for (const auto& v : results.leak_violations) {
         if (!first) sarif << ",\n";
