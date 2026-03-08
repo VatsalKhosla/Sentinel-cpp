@@ -31,7 +31,6 @@ void ReportGenerator::generateText(const AnalysisResults& results) {
         return;
     }
     
-    // Use-after-free violations
     if (!results.uaf_violations.empty() && config_.getUseAfterFreeConfig().enabled) {
         std::cout << "\n=== Use-After-Free Detection Results ===\n\n";
         for (const auto& v : results.uaf_violations) {
@@ -43,7 +42,6 @@ void ReportGenerator::generateText(const AnalysisResults& results) {
         std::cout << "Found " << results.uaf_violations.size() << " memory safety violation(s)\n";
     }
     
-    // Memory leak violations
     if (!results.leak_violations.empty() && config_.getMemoryLeakConfig().enabled) {
         std::cout << "\n=== Memory Leak Detection Results ===\n\n";
         for (const auto& v : results.leak_violations) {
@@ -55,7 +53,6 @@ void ReportGenerator::generateText(const AnalysisResults& results) {
         std::cout << "Found " << results.leak_violations.size() << " potential memory leak(s)\n";
     }
     
-    // Null pointer violations
     if (!results.null_violations.empty() && config_.getNullDerefConfig().enabled) {
         std::cout << "\n=== Null Pointer Dereference Detection Results ===\n\n";
         for (const auto& v : results.null_violations) {
@@ -68,7 +65,6 @@ void ReportGenerator::generateText(const AnalysisResults& results) {
         std::cout << "Found " << results.null_violations.size() << " null pointer dereference(s)\n";
     }
     
-    // Summary
     std::cout << "\n=== Summary ===\n";
     std::cout << "Total issues found: " << results.total() << "\n";
     std::cout << "  - Use-after-free: " << results.uaf_violations.size() << "\n";

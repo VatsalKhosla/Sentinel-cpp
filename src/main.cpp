@@ -55,8 +55,7 @@ public:
     virtual void HandleTranslationUnit(ASTContext &context) override {
         walker_.TraverseDecl(context.getTranslationUnitDecl());
         null_detector_.TraverseDecl(context.getTranslationUnitDecl());
-        
-        // Collect all violations
+
         results_.uaf_violations = uaf_detector_.detect(analyzer_);
         results_.leak_violations = leak_detector_.detect(analyzer_);
         results_.null_violations = null_detector_.getViolations();
@@ -110,15 +109,13 @@ int main(int argc, const char **argv) {
     }
     
     CommonOptionsParser& OptionsParser = ExpectedParser.get();
-    
-    // Load configuration
+
     safecpp::Config config = safecpp::Config::getDefault();
     
     if (!ConfigFile.empty()) {
         config.loadFromFile(ConfigFile);
     }
-    
-    // Parse command-line format option
+
     std::string format_str = OutputFormat;
     if (format_str == "json") {
         config.setOutputFormat(safecpp::OutputFormat::JSON);
@@ -135,15 +132,13 @@ int main(int argc, const char **argv) {
     }
     
     config.setVerbose(Verbose);
-    
-    // Run analysis
+
     safecpp::AnalysisResults results;
     ClangTool Tool(OptionsParser.getCompilations(), OptionsParser.getSourcePathList());
     
     auto factory = std::make_unique<SafeCppActionFactory>(config, results);
     int status = Tool.run(factory.get());
-    
-    // Generate report
+
     safecpp::ReportGenerator reporter(config);
     reporter.generate(results);
     

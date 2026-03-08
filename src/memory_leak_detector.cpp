@@ -13,7 +13,6 @@ std::vector<MemoryLeakViolation> MemoryLeakDetector::detect(const LifetimeAnalyz
     auto all_lifetimes = analyzer.getAllLifetimes();
     
     for (const auto& [var_name, lifetime] : all_lifetimes) {
-        // Check if allocated but never freed
         if (lifetime.state == LifetimeState::ALIVE && 
             lifetime.allocated_at != nullptr && 
             !lifetime.freed_at) {

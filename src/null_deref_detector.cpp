@@ -89,12 +89,10 @@ void NullDerefDetector::checkNullDereference(const std::string& var_name, const 
 bool NullDerefDetector::isNullPointer(const clang::Expr* expr) {
     expr = expr->IgnoreParenCasts();
     
-    // Check for nullptr
     if (llvm::isa<clang::CXXNullPtrLiteralExpr>(expr)) {
         return true;
     }
     
-    // Check for NULL or 0
     if (const auto *intLit = llvm::dyn_cast<clang::IntegerLiteral>(expr)) {
         return intLit->getValue() == 0;
     }

@@ -33,18 +33,12 @@ bool Config::loadFromFile(const std::string& filepath) {
     std::stringstream buffer;
     buffer << file.rdbuf();
     std::string content = buffer.str();
-    
-    // Simple JSON parsing (for now, just a basic implementation)
-    // In production, use a real JSON library like nlohmann/json
     parseJSON(content);
     
     return true;
 }
 
 void Config::parseJSON(const std::string& content) {
-    // Simple parser for basic config values
-    // This is a minimal implementation - use a proper JSON library for production
-    
     if (content.find("\"text\"") != std::string::npos) {
         output_format_ = OutputFormat::TEXT;
     } else if (content.find("\"json\"") != std::string::npos) {
@@ -58,8 +52,7 @@ void Config::parseJSON(const std::string& content) {
     if (content.find("\"verbose\": true") != std::string::npos) {
         verbose_ = true;
     }
-    
-    // Parse checker configurations
+
     if (content.find("\"use_after_free\"") != std::string::npos) {
         if (content.find("\"enabled\": false") != std::string::npos) {
             uaf_config_.enabled = false;
