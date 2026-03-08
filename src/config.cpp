@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include "llvm/Support/JSON.h"
 
 namespace safecpp {
 
@@ -33,31 +34,102 @@ bool Config::loadFromFile(const std::string& filepath) {
     std::stringstream buffer;
     buffer << file.rdbuf();
     std::string content = buffer.str();
-    parseJSON(content);
-    
-    return true;
+    return parseJSON(content);
 }
 
-void Config::parseJSON(const std::string& content) {
-    if (content.find("\"text\"") != std::string::npos) {
-        output_format_ = OutputFormat::TEXT;
-    } else if (content.find("\"json\"") != std::string::npos) {
-        output_format_ = OutputFormat::JSON;
-    } else if (content.find("\"html\"") != std::string::npos) {
-        output_format_ = OutputFormat::HTML;
-    } else if (content.find("\"sarif\"") != std::string::npos) {
-        output_format_ = OutputFormat::SARIF;
+namespace {
+
+OutputFormat parseOutputFormat(const std::string& format) {
+    if (format == "json") {
+        return OutputFormat::JSON;
     }
-    
-    if (content.find("\"verbose\": true") != std::string::npos) {
-        verbose_ = true;
+    if (format == "html") {
+        return OutputFormat::HTML;
+    }
+    if (format == "sarif") {
+        return OutputFormat::SARIF;
+    }
+    return OutputFormat::TEXT;
+}
+
+Severity parseSeverity(const std::string& severity) {
+    if (severity == "info") {
+        return Severity::INFO;
+    }
+    if (severity == "warning") {
+        return Severity::WARNING;
+    }
+    return Severity::ERROR;
+}
+
+void applyCheckerConfig(const llvm::json::Object* obj, CheckerConfig& config) {
+    if (!obj) {
+        return;
     }
 
-    if (content.find("\"use_after_free\"") != std::string::npos) {
-        if (content.find("\"enabled\": false") != std::string::npos) {
-            uaf_config_.enabled = false;
+    auto enabled = obj->getBoolean("enabled");
+    if (enabled.has_value()) {
+        config.enabled = *enabled;
+    }
+
+    auto severity = obj->getString("severity");
+    if (severity.has_value()) {
+        config.severity = parseSeverity(severity->str());
+    }
+}
+
+} // namespace
+
+bool Config::parseJSON(const std::string& content) {
+    auto parsed = llvm::json::parse(content);
+    if (!parsed) {
+        std::cerr << "Warning: Failed to parse config JSON\n";
+        return false;
+    }
+
+    const auto* root = parsed->getAsObject();
+    if (!root) {
+        std::cerr << "Warning: Config root must be a JSON object\n";
+        return false;
+    }
+
+    auto output_format = root->getString("output_format");
+    if (output_format.has_value()) {
+        output_format_ = parseOutputFormat(output_format->str());
+    }
+
+    if (const auto* output = root->getObject("output")) {
+        auto format = output->getString("format");
+        if (format.has_value()) {
+            output_format_ = parseOutputFormat(format->str());
+        }
+        auto file = output->getString("file");
+        if (file.has_value()) {
+            output_file_ = file->str();
+        }
+        auto output_verbose = output->getBoolean("verbose");
+        if (output_verbose.has_value()) {
+            verbose_ = *output_verbose;
         }
     }
+
+    auto output_file = root->getString("output_file");
+    if (output_file.has_value()) {
+        output_file_ = output_file->str();
+    }
+
+    auto root_verbose = root->getBoolean("verbose");
+    if (root_verbose.has_value()) {
+        verbose_ = *root_verbose;
+    }
+
+    if (const auto* checkers = root->getObject("checkers")) {
+        applyCheckerConfig(checkers->getObject("use_after_free"), uaf_config_);
+        applyCheckerConfig(checkers->getObject("memory_leak"), leak_config_);
+        applyCheckerConfig(checkers->getObject("null_dereference"), null_config_);
+    }
+    
+    return true;
 }
 
 } // namespace safecpp

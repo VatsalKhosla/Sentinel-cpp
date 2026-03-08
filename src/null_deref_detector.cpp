@@ -2,6 +2,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/Stmt.h"
 #include "clang/Basic/SourceManager.h"
 #include <iostream>
 
@@ -10,14 +11,68 @@ namespace safecpp {
 NullDerefDetector::NullDerefDetector(clang::ASTContext *context) 
     : context_(context) {}
 
+bool NullDerefDetector::TraverseIfStmt(clang::IfStmt *if_stmt) {
+    if (!if_stmt) {
+        return true;
+    }
+
+    std::string guarded_var;
+    bool then_non_null = false;
+    bool has_guard = getNullGuardInfo(if_stmt->getCond(), guarded_var, then_non_null);
+
+    auto saved_state = null_assignments_;
+
+    if (if_stmt->getInit()) {
+        this->TraverseStmt(if_stmt->getInit());
+    }
+    if (if_stmt->getConditionVariableDeclStmt()) {
+        this->TraverseStmt(if_stmt->getConditionVariableDeclStmt());
+    }
+    if (if_stmt->getCond()) {
+        this->TraverseStmt(if_stmt->getCond());
+    }
+
+    if (has_guard) {
+        if (then_non_null) {
+            clearNullAssignment(guarded_var);
+        } else {
+            trackNullAssignment(guarded_var, if_stmt);
+        }
+    }
+
+    if (if_stmt->getThen()) {
+        this->TraverseStmt(if_stmt->getThen());
+    }
+
+    null_assignments_ = saved_state;
+
+    if (if_stmt->getElse()) {
+        if (has_guard) {
+            if (then_non_null) {
+                trackNullAssignment(guarded_var, if_stmt);
+            } else {
+                clearNullAssignment(guarded_var);
+            }
+        }
+        this->TraverseStmt(if_stmt->getElse());
+    }
+
+    null_assignments_ = saved_state;
+    return true;
+}
+
 bool NullDerefDetector::VisitVarDecl(clang::VarDecl *decl) {
     if (decl->hasInit()) {
         const clang::Expr* init = decl->getInit();
+        std::string var_name = decl->getNameAsString();
+        if (var_name.empty()) {
+            return true;
+        }
+
         if (isNullPointer(init)) {
-            std::string var_name = decl->getNameAsString();
-            if (!var_name.empty()) {
-                trackNullAssignment(var_name, init);
-            }
+            trackNullAssignment(var_name, init);
+        } else {
+            clearNullAssignment(var_name);
         }
     }
     return true;
@@ -25,11 +80,15 @@ bool NullDerefDetector::VisitVarDecl(clang::VarDecl *decl) {
 
 bool NullDerefDetector::VisitBinaryOperator(clang::BinaryOperator *op) {
     if (op->getOpcode() == clang::BO_Assign) {
+        std::string var_name = getVarName(op->getLHS());
+        if (var_name.empty()) {
+            return true;
+        }
+
         if (isNullPointer(op->getRHS())) {
-            std::string var_name = getVarName(op->getLHS());
-            if (!var_name.empty()) {
-                trackNullAssignment(var_name, op);
-            }
+            trackNullAssignment(var_name, op);
+        } else {
+            clearNullAssignment(var_name);
         }
     }
     return true;
@@ -67,6 +126,10 @@ void NullDerefDetector::trackNullAssignment(const std::string& var_name, const c
     null_assignments_[var_name] = stmt;
 }
 
+void NullDerefDetector::clearNullAssignment(const std::string& var_name) {
+    null_assignments_.erase(var_name);
+}
+
 void NullDerefDetector::checkNullDereference(const std::string& var_name, const clang::Stmt* stmt) {
     if (null_assignments_.find(var_name) != null_assignments_.end()) {
         NullDerefViolation violation;
@@ -87,7 +150,7 @@ void NullDerefDetector::checkNullDereference(const std::string& var_name, const 
 }
 
 bool NullDerefDetector::isNullPointer(const clang::Expr* expr) {
-    expr = expr->IgnoreParenCasts();
+    expr = expr->IgnoreParenImpCasts();
     
     if (llvm::isa<clang::CXXNullPtrLiteralExpr>(expr)) {
         return true;
@@ -101,13 +164,69 @@ bool NullDerefDetector::isNullPointer(const clang::Expr* expr) {
 }
 
 std::string NullDerefDetector::getVarName(const clang::Expr* expr) {
-    expr = expr->IgnoreParenCasts();
+    expr = expr->IgnoreParenImpCasts();
     
     if (const auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
         return declRef->getNameInfo().getAsString();
     }
     
     return "";
+}
+
+bool NullDerefDetector::getNullGuardInfo(const clang::Expr* cond, std::string& var_name, bool& then_non_null) {
+    if (!cond) {
+        return false;
+    }
+
+    cond = cond->IgnoreParenImpCasts();
+
+    if (const auto *decl_ref = llvm::dyn_cast<clang::DeclRefExpr>(cond)) {
+        var_name = decl_ref->getNameInfo().getAsString();
+        then_non_null = true;
+        return !var_name.empty();
+    }
+
+    if (const auto *unary = llvm::dyn_cast<clang::UnaryOperator>(cond)) {
+        if (unary->getOpcode() == clang::UO_LNot) {
+            std::string inner_var = getVarName(unary->getSubExpr());
+            if (!inner_var.empty()) {
+                var_name = inner_var;
+                then_non_null = false;
+                return true;
+            }
+        }
+    }
+
+    const auto *binary = llvm::dyn_cast<clang::BinaryOperator>(cond);
+    if (!binary) {
+        return false;
+    }
+
+    if (binary->getOpcode() != clang::BO_EQ && binary->getOpcode() != clang::BO_NE) {
+        return false;
+    }
+
+    const clang::Expr *lhs = binary->getLHS();
+    const clang::Expr *rhs = binary->getRHS();
+
+    const clang::Expr *var_expr = nullptr;
+    if (isNullPointer(lhs)) {
+        var_expr = rhs;
+    } else if (isNullPointer(rhs)) {
+        var_expr = lhs;
+    }
+
+    if (!var_expr) {
+        return false;
+    }
+
+    var_name = getVarName(var_expr);
+    if (var_name.empty()) {
+        return false;
+    }
+
+    then_non_null = (binary->getOpcode() == clang::BO_NE);
+    return true;
 }
 
 std::vector<NullDerefViolation> NullDerefDetector::getViolations() const {

@@ -53,7 +53,7 @@ private:
     CheckerConfig leak_config_;
     CheckerConfig null_config_;
     
-    void parseJSON(const std::string& content);
+    bool parseJSON(const std::string& content);
 };
 
 } // namespace safecpp

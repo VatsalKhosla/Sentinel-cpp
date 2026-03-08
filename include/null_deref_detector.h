@@ -20,6 +20,7 @@ struct NullDerefViolation {
 class NullDerefDetector : public clang::RecursiveASTVisitor<NullDerefDetector> {
 public:
     explicit NullDerefDetector(clang::ASTContext *context);
+    bool TraverseIfStmt(clang::IfStmt *if_stmt);
     
     bool VisitVarDecl(clang::VarDecl *decl);
     bool VisitBinaryOperator(clang::BinaryOperator *op);
@@ -36,9 +37,11 @@ private:
     std::vector<NullDerefViolation> violations_;
     
     void trackNullAssignment(const std::string& var_name, const clang::Stmt* stmt);
+    void clearNullAssignment(const std::string& var_name);
     void checkNullDereference(const std::string& var_name, const clang::Stmt* stmt);
     bool isNullPointer(const clang::Expr* expr);
     std::string getVarName(const clang::Expr* expr);
+    bool getNullGuardInfo(const clang::Expr* cond, std::string& var_name, bool& then_non_null);
 };
 
 } // namespace safecpp
