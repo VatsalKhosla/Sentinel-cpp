@@ -20,9 +20,10 @@ private:
     clang::ASTContext *context_;
     LifetimeAnalyzer& analyzer_;
     
-    bool isFreeCall(const clang::CallExpr *expr);
+    bool isFreeCall(const clang::CallExpr *expr) const;
     bool isNewExpr(const clang::Expr *expr);
-    std::string getVarName(const clang::Expr *expr);
+    bool isInFreeOrDeleteContext(const clang::DeclRefExpr *expr) const;
+    std::string getVarName(const clang::Expr *expr) const;
 };
 
 } // namespace safecpp

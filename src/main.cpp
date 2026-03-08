@@ -46,6 +46,28 @@ static cl::opt<bool> Verbose(
     cl::init(false),
     cl::cat(SafeCppCategory));
 
+static bool hasBlockingFindings(const safecpp::AnalysisResults& results, const safecpp::Config& config) {
+    if (config.getUseAfterFreeConfig().enabled &&
+        config.getUseAfterFreeConfig().severity == safecpp::Severity::ERROR &&
+        !results.uaf_violations.empty()) {
+        return true;
+    }
+
+    if (config.getMemoryLeakConfig().enabled &&
+        config.getMemoryLeakConfig().severity == safecpp::Severity::ERROR &&
+        !results.leak_violations.empty()) {
+        return true;
+    }
+
+    if (config.getNullDerefConfig().enabled &&
+        config.getNullDerefConfig().severity == safecpp::Severity::ERROR &&
+        !results.null_violations.empty()) {
+        return true;
+    }
+
+    return false;
+}
+
 class SafeCppConsumer : public ASTConsumer {
 public:
     explicit SafeCppConsumer(ASTContext *context, safecpp::Config& config, safecpp::AnalysisResults& results)
@@ -141,6 +163,10 @@ int main(int argc, const char **argv) {
 
     safecpp::ReportGenerator reporter(config);
     reporter.generate(results);
-    
-    return status;
+
+    if (status != 0) {
+        return status;
+    }
+
+    return hasBlockingFindings(results, config) ? 2 : 0;
 }
