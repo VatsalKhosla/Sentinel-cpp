@@ -41,7 +41,28 @@ void ReportGenerator::generateText(const AnalysisResults& results) {
             std::cout << "  Freed at line: " << v.free_line << "\n";
             std::cout << "  Used at line: " << v.use_line << "\n\n";
         }
-        std::cout << "Found " << results.uaf_violations.size() << " memory safety violation(s)\n";
+        std::cout << "Found " << results.uaf_violations.size() << " intraprocedural memory safety violation(s)\n";
+    }
+    
+    if (!results.cross_func_uaf_violations.empty() && config_.getUseAfterFreeConfig().enabled) {
+        std::cout << "\n=== Cross-Function Use-After-Free Detection Results ===\n\n";
+        for (const auto& v : results.cross_func_uaf_violations) {
+            std::cout << "error: cross-function use-after-free detected for '" << v.variable << "'\n";
+            std::cout << "  Allocated in: " << v.alloc_func << "() at line " << v.alloc_line << "\n";
+            std::cout << "  Freed in: " << v.free_func << "() at line " << v.free_line << "\n";
+            std::cout << "  Used in: " << v.use_func << "() at line " << v.use_line << "\n";
+            std::cout << "  Transfer type: " << v.transfer_type << "\n";
+            if (!v.ownership_chain.empty()) {
+                std::cout << "  Ownership chain: ";
+                for (size_t i = 0; i < v.ownership_chain.size(); ++i) {
+                    std::cout << v.ownership_chain[i];
+                    if (i < v.ownership_chain.size() - 1) std::cout << " → ";
+                }
+                std::cout << "\n";
+            }
+            std::cout << "\n";
+        }
+        std::cout << "Found " << results.cross_func_uaf_violations.size() << " cross-function violation(s)\n";
     }
     
     if (!results.leak_violations.empty() && config_.getMemoryLeakConfig().enabled) {
@@ -69,7 +90,8 @@ void ReportGenerator::generateText(const AnalysisResults& results) {
     
     std::cout << "\n=== Summary ===\n";
     std::cout << "Total issues found: " << results.total() << "\n";
-    std::cout << "  - Use-after-free: " << results.uaf_violations.size() << "\n";
+    std::cout << "  - Intraprocedural UAF: " << results.uaf_violations.size() << "\n";
+    std::cout << "  - Cross-function UAF: " << results.cross_func_uaf_violations.size() << "\n";
     std::cout << "  - Memory leaks: " << results.leak_violations.size() << "\n";
     std::cout << "  - Null dereferences: " << results.null_violations.size() << "\n";
 }
@@ -112,6 +134,7 @@ std::string ReportGenerator::toJSON(const AnalysisResults& results) {
     json << "  \"summary\": {\n";
     json << "    \"total_issues\": " << results.total() << ",\n";
     json << "    \"use_after_free\": " << results.uaf_violations.size() << ",\n";
+    json << "    \"cross_function_uaf\": " << results.cross_func_uaf_violations.size() << ",\n";
     json << "    \"memory_leaks\": " << results.leak_violations.size() << ",\n";
     json << "    \"null_dereferences\": " << results.null_violations.size() << "\n";
     json << "  },\n";
@@ -124,11 +147,37 @@ std::string ReportGenerator::toJSON(const AnalysisResults& results) {
         if (!first) json << ",\n";
         json << "    {\n";
         json << "      \"type\": \"use-after-free\",\n";
+        json << "      \"scope\": \"intraprocedural\",\n";
         json << "      \"severity\": \"error\",\n";
         json << "      \"variable\": \"" << v.variable << "\",\n";
         json << "      \"free_line\": " << v.free_line << ",\n";
         json << "      \"use_line\": " << v.use_line << ",\n";
         json << "      \"message\": \"" << v.message << "\"\n";
+        json << "    }";
+        first = false;
+    }
+    
+    // Cross-function UAF violations
+    for (const auto& v : results.cross_func_uaf_violations) {
+        if (!first) json << ",\n";
+        json << "    {\n";
+        json << "      \"type\": \"use-after-free\",\n";
+        json << "      \"scope\": \"interprocedural\",\n";
+        json << "      \"severity\": \"error\",\n";
+        json << "      \"variable\": \"" << v.variable << "\",\n";
+        json << "      \"alloc_func\": \"" << v.alloc_func << "\",\n";
+        json << "      \"alloc_line\": " << v.alloc_line << ",\n";
+        json << "      \"free_func\": \"" << v.free_func << "\",\n";
+        json << "      \"free_line\": " << v.free_line << ",\n";
+        json << "      \"use_func\": \"" << v.use_func << "\",\n";
+        json << "      \"use_line\": " << v.use_line << ",\n";
+        json << "      \"transfer_type\": \"" << v.transfer_type << "\",\n";
+        json << "      \"ownership_chain\": [";
+        for (size_t i = 0; i < v.ownership_chain.size(); ++i) {
+            if (i > 0) json << ", ";
+            json << "\"" << v.ownership_chain[i] << "\"";
+        }
+        json << "]\n";
         json << "    }";
         first = false;
     }
@@ -230,8 +279,12 @@ std::string ReportGenerator::toHTML(const AnalysisResults& results) {
     html << "        <div class='stat-value'>" << results.total() << "</div>\n";
     html << "      </div>\n";
     html << "      <div class='stat-card error'>\n";
-    html << "        <div class='stat-label'>Use-After-Free</div>\n";
+    html << "        <div class='stat-label'>Intraprocedural UAF</div>\n";
     html << "        <div class='stat-value'>" << results.uaf_violations.size() << "</div>\n";
+    html << "      </div>\n";
+    html << "      <div class='stat-card error'>\n";
+    html << "        <div class='stat-label'>Cross-Function UAF</div>\n";
+    html << "        <div class='stat-value'>" << results.cross_func_uaf_violations.size() << "</div>\n";
     html << "      </div>\n";
     html << "      <div class='stat-card warning'>\n";
     html << "        <div class='stat-label'>Memory Leaks</div>\n";
@@ -246,7 +299,7 @@ std::string ReportGenerator::toHTML(const AnalysisResults& results) {
     // Use-after-free violations
     if (!results.uaf_violations.empty()) {
         html << "    <div class='section'>\n";
-        html << "      <div class='section-title'>Use-After-Free Violations</div>\n";
+        html << "      <div class='section-title'>Intraprocedural Use-After-Free Violations</div>\n";
         for (const auto& v : results.uaf_violations) {
             html << "      <div class='violation-card'>\n";
             html << "        <div class='violation-header'>\n";
@@ -326,6 +379,45 @@ std::string ReportGenerator::toHTML(const AnalysisResults& results) {
             html << "        <div class='suppression'>\n";
             html << "          <div class='suppression-title'>💡 Suppression Suggestion</div>\n";
             html << "          " << getSuppressionSuggestion("null-dereference") << "\n";
+            html << "        </div>\n";
+            html << "      </div>\n";
+        }
+        html << "    </div>\n";
+    }
+    
+    // Cross-function UAF violations
+    if (!results.cross_func_uaf_violations.empty()) {
+        html << "    <div class='section'>\n";
+        html << "      <div class='section-title'>Cross-Function Use-After-Free Violations</div>\n";
+        for (const auto& v : results.cross_func_uaf_violations) {
+            html << "      <div class='violation-card'>\n";
+            html << "        <div class='violation-header'>\n";
+            html << "          <div class='violation-title'>Interprocedural ownership violation</div>\n";
+            html << "          <span class='badge error'>ERROR</span>\n";
+            html << "        </div>\n";
+            html << "        <div class='detail-row'><span class='detail-label'>Variable:</span><code>" << htmlEscape(v.variable) << "</code></div>\n";
+            html << "        <div class='detail-row'><span class='detail-label'>Ownership Chain:</span><span class='detail-value'>";
+            for (size_t i = 0; i < v.ownership_chain.size(); ++i) {
+                if (i > 0) html << " → ";
+                html << "<code>" << htmlEscape(v.ownership_chain[i]) << "</code>";
+            }
+            html << "</span></div>\n";
+            html << "        <div class='detail-row'><span class='detail-label'>Allocated in:</span><code>" << htmlEscape(v.alloc_func) << "</code><span class='detail-value'> (line " << v.alloc_line << ")</span></div>\n";
+            html << "        <div class='detail-row'><span class='detail-label'>Freed in:</span><code>" << htmlEscape(v.free_func) << "</code><span class='detail-value'> (line " << v.free_line << ")</span></div>\n";
+            html << "        <div class='detail-row'><span class='detail-label'>Used in:</span><code>" << htmlEscape(v.use_func) << "</code><span class='detail-value'> (line " << v.use_line << ")</span></div>\n";
+            html << "        <div class='detail-row'><span class='detail-label'>Transfer Type:</span><span class='detail-value'>" << htmlEscape(v.transfer_type) << "</span></div>\n";
+            html << "        <div class='explanation'>\n";
+            html << "          <div class='explanation-title'>⚠️ Why This Matters</div>\n";
+            html << "          <p>This is a critical interprocedural memory safety violation. Memory is allocated in <code>" << htmlEscape(v.alloc_func);
+            html << "</code>, transferred between functions";
+            for (size_t i = 1; i < v.ownership_chain.size(); ++i) {
+                html << " via <code>" << htmlEscape(v.ownership_chain[i]) << "</code>";
+            }
+            html << ", freed in <code>" << htmlEscape(v.free_func) << "</code>, but then used in <code>" << htmlEscape(v.use_func) << "</code>.</p>\n";
+            html << "        </div>\n";
+            html << "        <div class='suppression'>\n";
+            html << "          <div class='suppression-title'>💡 Suggestion</div>\n";
+            html << "          Consider using RAII patterns or smart pointers to manage ownership across function boundaries. Ensure the pointer's lifetime extends to all use sites, or establish clear ownership transfer semantics.\n";
             html << "        </div>\n";
             html << "      </div>\n";
         }
