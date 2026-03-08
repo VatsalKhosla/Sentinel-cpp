@@ -29,6 +29,7 @@ struct CrossFunctionUAFViolation {
     unsigned int free_line;
     std::string use_func;        // Where used after free
     unsigned int use_line;
+    std::string transfer_type;   // How pointer was passed (pass_by_value, pass_by_reference, return_value)
     std::vector<std::string> ownership_chain;  // [func1 -> func2 -> func3]
 };
 
