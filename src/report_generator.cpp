@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <vector>
 
 namespace safecpp {
 
@@ -255,6 +256,10 @@ std::string ReportGenerator::toHTML(const AnalysisResults& results) {
             html << "        <div class='detail-row'><span class='detail-label'>Variable:</span><code>" << htmlEscape(v.variable) << "</code></div>\n";
             html << "        <div class='detail-row'><span class='detail-label'>Freed at line:</span><span class='detail-value'>" << v.free_line << "</span></div>\n";
             html << "        <div class='detail-row'><span class='detail-label'>Used at line:</span><span class='detail-value'>" << v.use_line << "</span></div>\n";
+            if (!v.file_path.empty()) {
+                html << "        <div class='detail-row'><span class='detail-label'>File:</span><span class='detail-value'>" << htmlEscape(v.file_path) << "</span></div>\n";
+            }
+            html << getCodeSnippet(v.file_path, v.use_line);
             html << "        <div class='explanation'>\n";
             html << "          <div class='explanation-title'>⚠️ Why This Matters</div>\n";
             html << "          " << getViolationExplanation("use-after-free") << "\n";
@@ -280,6 +285,10 @@ std::string ReportGenerator::toHTML(const AnalysisResults& results) {
             html << "        </div>\n";
             html << "        <div class='detail-row'><span class='detail-label'>Variable:</span><code>" << htmlEscape(v.variable) << "</code></div>\n";
             html << "        <div class='detail-row'><span class='detail-label'>Allocated at line:</span><span class='detail-value'>" << v.alloc_line << "</span></div>\n";
+            if (!v.file_path.empty()) {
+                html << "        <div class='detail-row'><span class='detail-label'>File:</span><span class='detail-value'>" << htmlEscape(v.file_path) << "</span></div>\n";
+            }
+            html << getCodeSnippet(v.file_path, v.alloc_line);
             html << "        <div class='explanation'>\n";
             html << "          <div class='explanation-title'>⚠️ Why This Matters</div>\n";
             html << "          " << getViolationExplanation("memory-leak") << "\n";
@@ -306,6 +315,10 @@ std::string ReportGenerator::toHTML(const AnalysisResults& results) {
             html << "        <div class='detail-row'><span class='detail-label'>Variable:</span><code>" << htmlEscape(v.variable) << "</code></div>\n";
             html << "        <div class='detail-row'><span class='detail-label'>Assigned null at line:</span><span class='detail-value'>" << v.null_assign_line << "</span></div>\n";
             html << "        <div class='detail-row'><span class='detail-label'>Dereferenced at line:</span><span class='detail-value'>" << v.deref_line << "</span></div>\n";
+            if (!v.file_path.empty()) {
+                html << "        <div class='detail-row'><span class='detail-label'>File:</span><span class='detail-value'>" << htmlEscape(v.file_path) << "</span></div>\n";
+            }
+            html << getCodeSnippet(v.file_path, v.deref_line);
             html << "        <div class='explanation'>\n";
             html << "          <div class='explanation-title'>⚠️ Why This Matters</div>\n";
             html << "          " << getViolationExplanation("null-dereference") << "\n";
@@ -347,6 +360,43 @@ std::string ReportGenerator::htmlEscape(const std::string& str) {
         }
     }
     return escaped;
+}
+
+std::string ReportGenerator::getCodeSnippet(const std::string& file_path, unsigned int line, int context_lines) {
+    if (file_path.empty() || line == 0) {
+        return "";
+    }
+
+    std::ifstream file(file_path);
+    if (!file.is_open()) {
+        return "";
+    }
+
+    std::vector<std::string> lines;
+    std::string current_line;
+    while (std::getline(file, current_line)) {
+        lines.push_back(current_line);
+    }
+
+    if (lines.empty()) {
+        return "";
+    }
+
+    unsigned int start = (line > static_cast<unsigned int>(context_lines)) ? (line - context_lines) : 1;
+    unsigned int end = std::min(static_cast<unsigned int>(lines.size()), line + context_lines);
+
+    std::ostringstream snippet;
+    snippet << "        <div class='code-snippet'>\n";
+    for (unsigned int i = start; i <= end; ++i) {
+        bool highlight = (i == line);
+        snippet << "          <span class='code-line" << (highlight ? " highlight" : "") << "'>";
+        snippet << "<span class='line-number'>" << i << "</span>";
+        snippet << htmlEscape(lines[i - 1]);
+        snippet << "</span>\n";
+    }
+    snippet << "        </div>\n";
+
+    return snippet.str();
 }
 
 std::string ReportGenerator::getViolationExplanation(const std::string& check_type) {

@@ -26,6 +26,9 @@ std::vector<UAFViolation> UAFDetector::detect(const LifetimeAnalyzer& analyzer) 
         if (lifetime.used_after_free) {
             clang::SourceLocation use_loc = lifetime.used_after_free->getBeginLoc();
             violation.use_line = sm.getSpellingLineNumber(use_loc);
+            if (violation.file_path.empty()) {
+                violation.file_path = sm.getFilename(use_loc).str();
+            }
         }
         
         violation.message = "Use-after-free detected for variable '" + var_name + "'";

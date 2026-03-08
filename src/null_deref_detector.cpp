@@ -142,6 +142,7 @@ void NullDerefDetector::checkNullDereference(const std::string& var_name, const 
         
         clang::SourceLocation deref_loc = stmt->getBeginLoc();
         violation.deref_line = sm.getSpellingLineNumber(deref_loc);
+        violation.file_path = sm.getFilename(deref_loc).str();
         
         violation.message = "Null pointer dereference: variable '" + var_name + 
                            "' may be null";
