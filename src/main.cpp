@@ -10,6 +10,8 @@
 #include "uaf_detector.h"
 #include "memory_leak_detector.h"
 #include "null_deref_detector.h"
+#include "call_graph.h"
+#include "interproc_ownership.h"
 #include "config.h"
 #include "report_generator.h"
 
@@ -72,15 +74,33 @@ class SafeCppConsumer : public ASTConsumer {
 public:
     explicit SafeCppConsumer(ASTContext *context, safecpp::Config& config, safecpp::AnalysisResults& results)
         : config_(config), results_(results), analyzer_(), walker_(context, analyzer_), 
-          uaf_detector_(context), leak_detector_(context), null_detector_(context) {}
+          uaf_detector_(context), leak_detector_(context), null_detector_(context),
+          call_graph_(context) {}
     
     virtual void HandleTranslationUnit(ASTContext &context) override {
+        // Intraprocedural analysis (current)
         walker_.TraverseDecl(context.getTranslationUnitDecl());
         null_detector_.TraverseDecl(context.getTranslationUnitDecl());
 
+        // Build call graph for interprocedural analysis
+        call_graph_.build();
+        
+        // Interprocedural ownership analysis
+        safecpp::InterprocOwnershipAnalyzer interproc_analyzer(call_graph_, analyzer_);
+        interproc_analyzer.analyze();
+        
+        // Detect violations
         results_.uaf_violations = uaf_detector_.detect(analyzer_);
         results_.leak_violations = leak_detector_.detect(analyzer_);
         results_.null_violations = null_detector_.getViolations();
+        
+        // Add cross-function UAF violations
+        auto cross_func_uaf = interproc_analyzer.detectCrossFunctionUAF();
+        if (config_.getUseAfterFreeConfig().enabled && !cross_func_uaf.empty()) {
+            if (Verbose) {
+                std::cout << "Detected " << cross_func_uaf.size() << " cross-function UAF violations\n";
+            }
+        }
     }
     
 private:
@@ -88,6 +108,10 @@ private:
     safecpp::AnalysisResults& results_;
     safecpp::LifetimeAnalyzer analyzer_;
     safecpp::ASTWalker walker_;
+    safecpp::UAFDetector uaf_detector_;
+    safecpp::MemoryLeakDetector leak_detector_;
+    safecpp::NullDerefDetector null_detector_;
+    safecpp::CallGraph call_graph_;
     safecpp::UAFDetector uaf_detector_;
     safecpp::MemoryLeakDetector leak_detector_;
     safecpp::NullDerefDetector null_detector_;
