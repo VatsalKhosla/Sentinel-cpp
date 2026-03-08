@@ -17,6 +17,8 @@ TEST_DIR = examples
 SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
 OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
 
+HEADERS = $(wildcard include/*.h)
+
 all: $(BUILD_DIR) $(TARGET)
 
 $(BUILD_DIR):
@@ -26,7 +28,7 @@ $(TARGET): $(OBJECTS)
 	$(CXX) $(OBJECTS) $(LLVM_LDFLAGS) $(CLANG_LIBS) -o $(TARGET)
 	@echo "✓ Built $(TARGET)"
 
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(HEADERS)
 	$(CXX) $(CXXFLAGS) $(LLVM_CXXFLAGS) -c $< -o $@
 
 clean:
@@ -41,6 +43,8 @@ test: $(TARGET)
 	./$(TARGET) $(TEST_DIR)/double_free.cpp --
 	@echo ""
 	./$(TARGET) $(TEST_DIR)/memory_leak.cpp --
+	@echo ""
+	./$(TARGET) $(TEST_DIR)/null_pointer.cpp --
 
 help:
 	@echo "SafeCpp - Memory Safety Analyzer"

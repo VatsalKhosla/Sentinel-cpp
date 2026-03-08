@@ -1,0 +1,34 @@
+{
+  "tool": "SafeCpp",
+  "version": "1.0.0",
+  "summary": {
+    "total_issues": 3,
+    "use_after_free": 1,
+    "memory_leaks": 2,
+    "null_dereferences": 0
+  },
+  "violations": [
+    {
+      "type": "use-after-free",
+      "severity": "error",
+      "variable": "data",
+      "free_line": 16,
+      "use_line": 17,
+      "message": "Use-after-free detected for variable 'data'"
+    },
+    {
+      "type": "memory-leak",
+      "severity": "warning",
+      "variable": "ptr",
+      "alloc_line": 5,
+      "message": "Memory leak: variable 'ptr' allocated but never freed"
+    },
+    {
+      "type": "memory-leak",
+      "severity": "warning",
+      "variable": "temp",
+      "alloc_line": 23,
+      "message": "Memory leak: variable 'temp' allocated but never freed"
+    }
+  ]
+}

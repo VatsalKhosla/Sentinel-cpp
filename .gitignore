@@ -6,6 +6,17 @@ build/
 safecpp
 tests
 
+# Reports
+*.html
+*.sarif
+report.*
+results.*
+test_output.*
+test_report.*
+
+# Config (keep .safecpp.json)
+!.safecpp.json
+
 # IDE
 .vscode/
 .idea/
@@ -17,6 +28,10 @@ compile_commands.json
 
 # OS
 .DS_Store
+
+# Temporary files
+*.tmp
+*.log
 
 # Documentation (work in progress)
 ROADMAP.md

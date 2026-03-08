@@ -5,6 +5,7 @@ namespace safecpp {
 void LifetimeAnalyzer::trackAllocation(const std::string& var_name, const clang::Stmt* stmt) {
     lifetimes_[var_name].name = var_name;
     lifetimes_[var_name].state = LifetimeState::ALIVE;
+    lifetimes_[var_name].allocated_at = stmt;
 }
 
 void LifetimeAnalyzer::trackFree(const std::string& var_name, const clang::Stmt* stmt) {
@@ -56,6 +57,10 @@ std::vector<std::pair<std::string, VariableLifetime>> LifetimeAnalyzer::getViola
     }
     
     return violations;
+}
+
+std::map<std::string, VariableLifetime> LifetimeAnalyzer::getAllLifetimes() const {
+    return lifetimes_;
 }
 
 } 

@@ -17,10 +17,11 @@ enum class LifetimeState {
 struct VariableLifetime {
     std::string name;
     LifetimeState state;
+    const clang::Stmt* allocated_at;
     const clang::Stmt* freed_at;
     const clang::Stmt* used_after_free;
     
-    VariableLifetime() : state(LifetimeState::UNKNOWN), freed_at(nullptr), used_after_free(nullptr) {}
+    VariableLifetime() : state(LifetimeState::UNKNOWN), allocated_at(nullptr), freed_at(nullptr), used_after_free(nullptr) {}
 };
 
 class LifetimeAnalyzer {
@@ -37,6 +38,7 @@ public:
     const VariableLifetime* getLifetime(const std::string& var_name) const;
     
     std::vector<std::pair<std::string, VariableLifetime>> getViolations() const;
+    std::map<std::string, VariableLifetime> getAllLifetimes() const;
     
 private:
     std::map<std::string, VariableLifetime> lifetimes_;

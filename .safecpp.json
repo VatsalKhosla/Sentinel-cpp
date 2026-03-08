@@ -1,0 +1,22 @@
+{
+  "output_format": "text",
+  "verbose": false,
+  "checkers": {
+    "use_after_free": {
+      "enabled": true,
+      "severity": "error"
+    },
+    "memory_leak": {
+      "enabled": true,
+      "severity": "warning"
+    },
+    "null_dereference": {
+      "enabled": true,
+      "severity": "error"
+    }
+  },
+  "exclude_patterns": [
+    "*/test/*",
+    "*/build/*"
+  ]
+}

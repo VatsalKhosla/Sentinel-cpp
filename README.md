@@ -14,22 +14,31 @@ C and C++ are prone to memory safety vulnerabilities:
 
 ## Features
 
-### Phase 1 (MVP)
+### Phase 1 (MVP) ✅
 - [x] Use-after-free detection
 - [x] Double-free detection  
+- [x] Memory leak detection
+- [x] Null pointer dereference detection
 - [x] Basic lifetime tracking
 - [x] Clang AST integration
 - [x] Build system (Makefile)
 - [x] Example test cases
 - [x] Working analyzer binary
 
-### Phase 2 (Advanced)
+### Phase 2 (Advanced) ✅
+- [x] Multiple output formats (Text, JSON, HTML, SARIF)
+- [x] Configuration system (JSON-based)
+- [x] Command-line options
+- [x] CI/CD integration (GitHub Actions)
+- [x] Severity levels (ERROR, WARNING, INFO)
 - [ ] Ownership inference
 - [ ] Borrow checker (mutable/immutable borrows)
 - [ ] Inter-procedural analysis
 - [ ] Path-sensitive analysis
 
 ### Phase 3 (Research-Level)
+- [ ] Control flow analysis
+- [ ] Taint analysis
 - [ ] Lifetime annotations (Rust-like)
 - [ ] Automatic fix suggestions
 - [ ] IDE integration (LSP)
@@ -54,32 +63,88 @@ C++ Code → Clang AST → Lifetime Analysis → Safety Checks → Reports
 ### Prerequisites
 
 ```bash
-# Install LLVM/Clang development libraries
-sudo apt-get install llvm-14-dev libclang-14-dev clang-14
+# Install LLVM/Clang 20 development libraries (Ubuntu/Debian)
+wget https://apt.llvm.org/llvm.sh
+chmod +x llvm.sh
+sudo ./llvm.sh 20
+sudo apt-get install llvm-20-dev libclang-20-dev clang-20
 
-# Or build from source
-wget https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.0/llvm-14.0.0.src.tar.xz
+# For older versions
+sudo apt-get install llvm-14-dev libclang-14-dev clang-14
 ```
 
 ### Build
 
 ```bash
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j4
+# Clean build
+make clean
+
+# Build the analyzer
+make
+
+# Run tests
+make test
 ```
 
 ### Usage
 
 ```bash
-# Analyze a single file
-./safecpp analyze examples/use_after_free.cpp
+# Analyze a single file (text output)
+./safecpp examples/use_after_free.cpp --
 
-# Analyze entire project
-./safecpp analyze --recursive src/
+# Generate JSON report
+./safecpp --format=json --output=report.json examples/use_after_free.cpp --
 
 # Generate HTML report
-./safecpp analyze --format html --output report.html src/
+./safecpp --format=html --output=report.html examples/memory_leak.cpp --
+
+# Generate SARIF report (for CI/CD integration)
+./safecpp --format=sarif --output=results.sarif examples/null_pointer.cpp --
+
+# Run all tests
+make test
+
+# Use custom configuration
+./safecpp --config=.safecpp.json examples/use_after_free.cpp --
+```
+
+### Command-Line Options
+
+```
+--format=<format>      Output format: text, json, html, sarif (default: text)
+--output=<filename>    Output file (default: stdout for text/json)
+--config=<path>        Configuration file path (.safecpp.json)
+--verbose              Enable verbose output
+-p <path>              Build path (for compilation database)
+```
+
+### Configuration File
+
+Create a `.safecpp.json` file in your project root:
+
+```json
+{
+  "output_format": "text",
+  "verbose": false,
+  "checkers": {
+    "use_after_free": {
+      "enabled": true,
+      "severity": "error"
+    },
+    "memory_leak": {
+      "enabled": true,
+      "severity": "warning"
+    },
+    "null_dereference": {
+      "enabled": true,
+      "severity": "error"
+    }
+  },
+  "exclude_patterns": [
+    "*/test/*",
+    "*/build/*"
+  ]
+}
 ```
 
 ## Example
@@ -97,25 +162,61 @@ void bar() {
     delete p;
     delete p;   // Double-free!
 }
+
+void leak() {
+    int* data = new int[100];
+    // Never freed - memory leak!
+}
+
+void null_crash() {
+    int* ptr = nullptr;
+    *ptr = 42;  // Null pointer dereference!
+}
 ```
 
-### SafeCpp Output
+### SafeCpp Output (Text Format)
 ```
-error: use-after-free detected
-  --> examples/use_after_free.cpp:4:5
-   |
-3  |     delete ptr;
-   |            --- value freed here
-4  |     *ptr = 10;
-   |     ^^^^ use of freed memory
+=== Use-After-Free Detection Results ===
 
-error: double-free detected
-  --> examples/double_free.cpp:4:5
-   |
-3  |     delete p;
-   |            - first free here
-4  |     delete p;
-   |     ^^^^^^^^ double-free of 'p'
+error: Use-after-free detected for variable 'ptr'
+  Variable: ptr
+  Freed at line: 3
+  Used at line: 4
+
+=== Memory Leak Detection Results ===
+
+warning: memory leak detected
+  Variable: data
+  Allocated at line: 14
+  Memory leak: variable 'data' allocated but never freed
+
+=== Null Pointer Dereference Detection Results ===
+
+error: null pointer dereference
+  Variable: ptr
+  Assigned null at line: 19
+  Dereferenced at line: 20
+
+=== Summary ===
+Total issues found: 3
+  - Use-after-free: 1
+  - Memory leaks: 1
+  - Null dereferences: 1
+```
+
+### JSON Output
+```json
+{
+  "tool": "SafeCpp",
+  "version": "1.0.0",
+  "summary": {
+    "total_issues": 3,
+    "use_after_free": 1,
+    "memory_leaks": 1,
+    "null_dereferences": 1
+  },
+  "violations": [...]
+}
 ```
 
 ## How It Works
@@ -214,29 +315,40 @@ Benchmarks on real-world codebases:
 
 ```
 safecpp/
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # GitHub Actions CI/CD
 ├── src/
 │   ├── ast_walker.cpp          # Traverse Clang AST
 │   ├── lifetime_analyzer.cpp   # Track variable lifetimes
-│   ├── ownership_checker.cpp   # Ownership analysis
 │   ├── uaf_detector.cpp        # Use-after-free detection
-│   ├── df_detector.cpp         # Double-free detection
+│   ├── memory_leak_detector.cpp # Memory leak detection
+│   ├── null_deref_detector.cpp # Null pointer dereference detection
+│   ├── config.cpp              # Configuration system
+│   ├── report_generator.cpp    # Multi-format report generation
 │   └── main.cpp                # CLI entry point
 ├── include/
 │   ├── ast_walker.h
 │   ├── lifetime_analyzer.h
-│   └── ...
-├── tests/
-│   ├── test_uaf.cpp
-│   ├── test_double_free.cpp
-│   └── test_ownership.cpp
+│   ├── uaf_detector.h
+│   ├── memory_leak_detector.h
+│   ├── null_deref_detector.h
+│   ├── config.h
+│   └── report_generator.h
 ├── examples/
-│   ├── simple_uaf.cpp
-│   ├── complex_ownership.cpp
-│   └── ...
-├── CMakeLists.txt
-└── README.md
-```
-
+│   ├── use_after_free.cpp
+│   ├── double_free.cpp
+│   ├── memory_leak.cpp
+│   ├── null_pointer.cpp
+│   └── safe_code.cppstatic analysis, control flow
+- **Static Analysis**: Data flow analysis, lifetime tracking, violation detection
+- **Security**: Memory safety vulnerabilities, CVE mitigation
+- **C++17**: Modern C++ features, templates, STL
+- **LLVM/Clang**: Production compiler infrastructure, LibTooling API
+- **Rust Concepts**: Ownership, borrowing, lifetimes applied to C++
+- **Software Engineering**: Modular design, configuration systems, CI/CD
+- **Report Generation**: Multiple output formats (JSON, HTML, SARIF)
+- **DevOps**: GitHub Actions, automated testing, artifact management
 ## Skills Demonstrated
 
 - **Compiler Design**: AST traversal, IR analysis
