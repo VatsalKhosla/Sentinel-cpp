@@ -13,6 +13,7 @@ struct MemoryLeakViolation {
     unsigned int alloc_line;
     std::string message;
     std::string scope;
+    std::string file_path;
 };
 
 class MemoryLeakDetector {

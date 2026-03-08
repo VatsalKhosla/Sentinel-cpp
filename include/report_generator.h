@@ -39,6 +39,10 @@ private:
     std::string toSARIF(const AnalysisResults& results);
     
     std::string severityToString(Severity severity);
+    std::string getCodeSnippet(const std::string& file_path, unsigned int line, int context_lines = 3);
+    std::string htmlEscape(const std::string& str);
+    std::string getViolationExplanation(const std::string& check_type);
+    std::string getSuppressionSuggestion(const std::string& check_type);
 };
 
 } // namespace safecpp

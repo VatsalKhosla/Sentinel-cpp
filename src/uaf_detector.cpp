@@ -20,6 +20,7 @@ std::vector<UAFViolation> UAFDetector::detect(const LifetimeAnalyzer& analyzer) 
         if (lifetime.freed_at) {
             clang::SourceLocation free_loc = lifetime.freed_at->getBeginLoc();
             violation.free_line = sm.getSpellingLineNumber(free_loc);
+            violation.file_path = sm.getFilename(free_loc).str();
         }
         
         if (lifetime.used_after_free) {

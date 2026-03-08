@@ -15,6 +15,7 @@ struct NullDerefViolation {
     unsigned int null_assign_line;
     unsigned int deref_line;
     std::string message;
+    std::string file_path;
 };
 
 class NullDerefDetector : public clang::RecursiveASTVisitor<NullDerefDetector> {

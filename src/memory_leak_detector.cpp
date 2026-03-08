@@ -23,9 +23,8 @@ std::vector<MemoryLeakViolation> MemoryLeakDetector::detect(const LifetimeAnalyz
             const clang::SourceManager& sm = context_->getSourceManager();
             clang::SourceLocation alloc_loc = lifetime.allocated_at->getBeginLoc();
             violation.alloc_line = sm.getSpellingLineNumber(alloc_loc);
-            
-            std::string filename = sm.getFilename(alloc_loc).str();
-            violation.scope = filename;
+            violation.file_path = sm.getFilename(alloc_loc).str();
+            violation.scope = violation.file_path;
             
             violation.message = "Memory leak: variable '" + var_name + 
                                "' allocated but never freed";

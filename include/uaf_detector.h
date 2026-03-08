@@ -11,6 +11,7 @@ struct UAFViolation {
     unsigned int free_line;
     unsigned int use_line;
     std::string message;
+    std::string file_path;
 };
 
 class UAFDetector {
